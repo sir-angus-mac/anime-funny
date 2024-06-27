@@ -1,0 +1,172 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opencv JS</title>
+    <script async src="js/opencv.js" onload="openCvReady();"></script>
+    <script src="js/utils.js"></script>
+</head>
+<body>
+    <video id="cam_input" height="480" width="640"></video>
+    <canvas id="canvas_output"></canvas>
+    <canvas id="myCanvas" height="480" width="640" style="border:2px solid #000000; display:none"></canvas> 
+    <img src="./anime_eye.png" id="background_image" style="display: none;"> 
+</body>
+<script type="text/JavaScript">
+const bg = document.getElementById("background_image");
+var canvas = document.getElementById('myCanvas')
+var context = canvas.getContext('2d');
+ function Cartoonify(s, face_vals, eye_vals) {
+    var imgd;
+    var pix; 
+    if (eye_vals != []) { 
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        for (const eye of eye_vals) {
+            context.drawImage(bg, eye[0], eye[1], eye[2], eye[3])
+        } 
+    } 
+    //s  
+    for (let i = 0; i < s.rows; i++) {
+        for (let j = 0; j < s.cols; j++) {
+            if (eye_vals != []) { 
+                var detect = false 
+                for (const eye of eye_vals) {
+                    if (eye[0] <= j && j < eye[0]+eye[2]) {
+                        if (eye[1] <= i && i < eye[1]+eye[3]) {
+                            detect = true
+                            break
+                        }
+                    }  
+                }
+                if (detect) {
+                    imgd = context.getImageData(j, i, 1, 1);
+                    if (imgd.data[0] == 0 && imgd.data[1] == 0 && imgd.data[2] == 255) {
+                        continue  
+                    } 
+                    s.ucharPtr(i, j)[0] = imgd.data[0]
+                    s.ucharPtr(i, j)[1] = imgd.data[1]
+                    s.ucharPtr(i, j)[2] = imgd.data[2] 
+                    continue 
+                } 
+            }  
+        }
+    } 
+    let src = s.clone() 
+    let dst = new cv.Mat();
+    cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0);
+    // You can try more different parameters
+    cv.bilateralFilter(src, dst, 9, 65, 65, cv.BORDER_DEFAULT);
+     
+    //blur  
+    cv.convertScaleAbs(dst, dst, 1.2, 2.25)
+    
+    //edges
+    let src2 = dst.clone();
+    let dst2 = new cv.Mat();
+    cv.cvtColor(src2, src2, cv.COLOR_RGBA2GRAY, 0); 
+    // You can try more different parameters
+    // cv.adaptiveThreshold(src2, dst2, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 5, 3);
+    cv.Canny(src2, dst2, 50, 50, 3, false); 
+    cv.cvtColor(dst2, dst2, cv.COLOR_GRAY2RGB, 0);
+
+    
+
+
+    //s  
+    for (let i = 0; i < dst2.rows; i++) {
+        for (let j = 0; j < dst2.cols; j++) {
+            if (dst2.ucharPtr(i, j)[0] == 255) {
+                if (face_vals != []) { 
+                    if (face_vals[0] <= j && j < face_vals[0]+face_vals[2]) {
+                        if (face_vals[1] <= i && i < face_vals[1]+face_vals[3]) {
+                            continue 
+                        }
+                    } 
+                } 
+                dst.ucharPtr(i, j)[0] = dst.ucharPtr(i, j)[0]*1/2
+                dst.ucharPtr(i, j)[1] = dst.ucharPtr(i, j)[1]*1/2
+                dst.ucharPtr(i, j)[2] = dst.ucharPtr(i, j)[2]*1/2 
+                dst.ucharPtr(i, j)[3] = dst.ucharPtr(i, j)[3]
+            }
+        }
+    }
+    return dst 
+} 
+
+function openCvReady() {
+  cv['onRuntimeInitialized']=()=>{
+    let video = document.getElementById("cam_input"); // video is the id of video tag
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+    .then(function(stream) {
+        video.srcObject = stream;
+        video.play();
+    })
+    .catch(function(err) {
+        console.log("An error occurred! " + err);
+    });
+    let src = new cv.Mat(video.height, video.width, cv.CV_8UC4);
+    let dst = new cv.Mat(video.height, video.width, cv.CV_8UC1);
+    let gray = new cv.Mat();
+    let cap = new cv.VideoCapture(cam_input);
+    let faces = new cv.RectVector();
+    let classifier = new cv.CascadeClassifier();
+    let utils = new Utils('errorMessage');
+    let faceCascadeFile = 'haarcascade_frontalface_default.xml'; // path to xml
+    utils.createFileFromUrl(faceCascadeFile, faceCascadeFile, () => {
+    classifier.load(faceCascadeFile); // in the callback, load the cascade from file 
+});
+     //eyes
+     let eyes = new cv.RectVector();
+    let eyeCascade = new cv.CascadeClassifier();
+        utils.createFileFromUrl('haarcascade_eye.xml', 'haarcascade_eye.xml', () => {
+            eyeCascade.load('haarcascade_eye.xml'); // in the callback, load the cascade from file 
+    });
+    const FPS = 24;
+    function processVideo() {
+        let begin = Date.now();
+        cap.read(src);
+        src.copyTo(dst);
+        cv.cvtColor(dst, gray, cv.COLOR_RGBA2GRAY, 0);
+        try{
+            classifier.detectMultiScale(gray, faces, 1.1, 3, 0);
+            console.log(faces.size());
+            eyeCascade.detectMultiScale(gray, eyes);
+        }catch(err){
+            console.log(err);
+        }
+        //get face vals
+        var face_val = []
+        var eye_vals = []
+
+        for (let i = 0; i < faces.size(); ++i) {
+            let face = faces.get(i);
+            let point1 = new cv.Point(face.x, face.y);
+            let point2 = new cv.Point(face.x + face.width, face.y + face.height);
+            //cv.rectangle(dst, point1, point2, [255, 0, 0, 255]);
+            face_val = [face.x, face.y, face.width, face.height] 
+            break
+        }
+        for (let j = 0; j < eyes.size(); ++j) {
+            let eye = eyes.get(j) 
+            let point3 = new cv.Point(eye.x, eye.y);
+            let point4 = new cv.Point(eye.x + eye.width,
+            eye.y + eye.height); 
+            eye_vals.push([eye.x, eye.y, eye.width, eye.height])
+            if (eye_vals.length == 2) {
+                break 
+            }
+        }   
+
+        var dst_conv = Cartoonify(dst,face_val, eye_vals) 
+
+        cv.imshow("canvas_output", dst_conv);
+        // schedule next one.
+        let delay = 1000/FPS - (Date.now() - begin);
+        setTimeout(processVideo, delay);
+}
+// schedule first one.
+setTimeout(processVideo, 0);
+  };
+}
+</script>
+</html>
