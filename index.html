@@ -129,14 +129,18 @@ function openCvReady() {
         cv.cvtColor(dst, gray, cv.COLOR_RGBA2GRAY, 0);
         try{
             classifier.detectMultiScale(gray, faces, 1.1, 3, 0);
-            console.log(faces.size());
+            //console.log(faces.size());
             eyeCascade.detectMultiScale(gray, eyes);
         }catch(err){
-            console.log(err);
+            //console.log(err);
         }
         //get face vals
         var face_val = []
         var eye_vals = []
+        var prev_has_eyes = false 
+        var prev_height_y = -1
+        var prev_width = -1
+        var prev_height = -1
 
         for (let i = 0; i < faces.size(); ++i) {
             let face = faces.get(i);
@@ -151,6 +155,19 @@ function openCvReady() {
             let point3 = new cv.Point(eye.x, eye.y);
             let point4 = new cv.Point(eye.x + eye.width,
             eye.y + eye.height); 
+            if (prev_has_eyes) {
+                if (Math.abs(prev_height_y - eye.y) > 20) {
+                    continue
+                } else {
+                    eye_vals.push([eye.x, eye.y, prev_width, prev_height])
+                    break
+                }
+            } else {
+                prev_height_y = eye.y
+                prev_width = eye.width
+                prev_height = eye.height
+            }
+            prev_has_eyes = true
             eye_vals.push([eye.x, eye.y, eye.width, eye.height])
             if (eye_vals.length == 2) {
                 break 
