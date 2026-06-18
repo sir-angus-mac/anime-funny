@@ -1,8 +1,16 @@
-# face-detection-opencv-js
+# Anime Funny
 
+そのプログラムはとてもシンプルで、HTMLで作られたものです。
 
-To test this copy or clone all the files with same directory structure and serve from the directory where 'index.html' file is located.
+Javascriptを使って、XMLのデータセットを読んで、カメラを通して顔に「アニメの目」を付けることができます。
 
-e.g:
+ぜひ試してみてください
 
-$ python -m http.server
+This program is very simple and built with HTML. 
+It uses JavaScript to read an XML dataset, allowing you to add "anime eyes" to your face via your camera.
+
+## Preview
+![Anime Eyes Preview](YOUR_IMAGE_URL_HERE)
+
+## Demo
+Check it out here: https://sir-angus-mac.github.io/anime-funny/
